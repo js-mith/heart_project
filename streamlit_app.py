@@ -1,12 +1,29 @@
 import streamlit as st
+import pandas as pd
 import numpy as np
-import joblib
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
 
-# Load the trained model and scaler
-model = joblib.load('model.pkl')
-scaler = joblib.load('scaler.pkl')
+# Load the dataset
+df = pd.read_csv("heart.csv")
 
-# Health status checker
+# Split features and target
+X = df.drop('target', axis=1)
+y = df['target']
+
+# Scale features
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+
+# Train/test split
+X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
+
+# Train model (directly on Streamlit Cloud)
+model = RandomForestClassifier()
+model.fit(X_train, y_train)
+
+# Health checker function
 def health_status(bp, chol, fbs, age):
     issues = []
     if bp > 130:
@@ -16,17 +33,16 @@ def health_status(bp, chol, fbs, age):
     if fbs == 1:
         issues.append("High Blood Sugar")
     if age > 45:
-        issues.append("Age-Related Risk")
+        issues.append("Age Risk")
     return "✅ You seem healthy!" if not issues else "⚠️ " + ", ".join(issues)
 
-# Title
+# Streamlit UI
 st.title("💓 Heart Attack Risk & Health Status Evaluator")
 
-# Input fields
+# User Inputs
 age = st.slider("Age", 20, 80)
 sex = st.radio("Sex", ["Male", "Female"])
 sex = 1 if sex == "Male" else 0
-
 cp = st.selectbox("Chest Pain Type (cp)", [0, 1, 2, 3])
 trtbps = st.number_input("Resting Blood Pressure (trtbps)", min_value=90, max_value=200, value=120)
 chol = st.number_input("Cholesterol (chol)", min_value=100, max_value=400, value=200)
@@ -39,22 +55,17 @@ slp = st.selectbox("Slope of ST Segment (slp)", [0, 1, 2])
 caa = st.selectbox("Number of Major Vessels (caa)", [0, 1, 2, 3, 4])
 thall = st.selectbox("Thalassemia Type (thall)", [0, 1, 2, 3])
 
-# Predict button
+# Predict Button
 if st.button("🔍 Evaluate My Risk"):
-    # Prepare input
     user_input = np.array([[age, sex, cp, trtbps, chol, fbs, restecg,
                             thalachh, exng, oldpeak, slp, caa, thall]])
     
-    # Scale and predict
-    scaled_input = scaler.transform(user_input)
-    prediction = model.predict(scaled_input)[0]
-
-    # Display prediction
+    user_scaled = scaler.transform(user_input)
+    prediction = model.predict(user_scaled)[0]
+    
     if prediction == 1:
         st.error("🚨 You are at HIGH RISK of heart attack.")
     else:
         st.success("✅ You are at LOW RISK of heart attack.")
     
-    # Show health warning (rule-based)
-    health = health_status(trtbps, chol, fbs, age)
-    st.info(f"💡 Health Status: {health}")
+    st.info("💡 Health Status: " + health_status(trtbps, chol, fbs, age))
